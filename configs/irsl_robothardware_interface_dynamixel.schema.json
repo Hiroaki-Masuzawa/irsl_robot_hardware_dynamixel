@@ -1,0 +1,137 @@
+{
+    "title": "RobotHardwareInterfaceDynamixel",
+    "type": "object",
+    "description": "Robot interface configuration for controlling Dynamixel motors using shared memory and hardware interface settings.",
+    "properties": {
+        "dynamixel_hardware_shm": {
+            "type": "object",
+            "description": "Settings for the hardware interface used to communicate with Dynamixel motors.",
+            "properties": {
+                "port_name": {
+                    "type": "string",
+                    "description": "Name of the serial port used to communicate with the motors (e.g., '/dev/ttyUSB0')."
+                },
+                "baud_rate": {
+                    "type": "integer",
+                    "description": "Baud rate for serial communication (e.g., 57600, 1000000)."
+                },
+                "period": {
+                    "type": "number",
+                    "description": "Control loop period in seconds (e.g., 0.001 for 1 kHz)."
+                },
+                "joint": {
+                    "type": "array",
+                    "description": "List of joints (motors) connected via this hardware interface.",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "ID": {
+                                "type": "integer",
+                                "description": "Unique ID of the Dynamixel motor."
+                            },
+                            "CommunicationGroupName": {
+                                "type": "string",
+                                "description": "Name used to group motors for synchronized communication."
+                            },
+                            "DynamixelSettings": {
+                                "type": "object",
+                                "description": "Settings specific to the Dynamixel motor.",
+                                "properties": {
+                                    "Operating_Mode": {
+                                        "type": "integer",
+                                        "description": "Defines the motor's control mode. For example, in the XL430 model: 1 = Velocity Control, 3 = Position Control, 4 = Extended Position Control, 16 = PWM Control."
+                                    },
+                                    "Torque_Enable": {
+                                        "type": "integer",
+                                        "description": "Enable (1) or disable (0) the motor torque."
+                                    },
+                                    "Goal_Position": {
+                                        "type": "integer",
+                                        "description": "Target position value."
+                                    },
+                                    "Goal_Velocity": {
+                                        "type": "integer",
+                                        "description": "Target velocity value."
+                                    },
+                                    "Goal_Current": {
+                                        "type": "integer",
+                                        "description": "Target current value."
+                                    },
+                                    "Profile_Acceleration": {
+                                        "type": "integer",
+                                        "description": "Acceleration for profile-based motion planning."
+                                    },
+                                    "Profile_Velocity": {
+                                        "type": "integer",
+                                        "description": "Velocity for profile-based motion planning."
+                                    },
+                                    "Position_P_Gain": {
+                                        "type": "integer",
+                                        "description": "Proportional gain for position control."
+                                    },
+                                    "Position_I_Gain": {
+                                        "type": "integer",
+                                        "description": "Integral gain for position control."
+                                    },
+                                    "Position_D_Gain": {
+                                        "type": "integer",
+                                        "description": "Derivative gain for position control."
+                                    },
+                                    "Feedforward_1st_Gain": {
+                                        "type": "integer",
+                                        "description": "1st-order feedforward gain (velocity)."
+                                    },
+                                    "Feedforward_2nd_Gain": {
+                                        "type": "integer",
+                                        "description": "2nd-order feedforward gain (acceleration)."
+                                    },
+                                    "Current_Limit": {
+                                        "type": "integer",
+                                        "description": "Maximum allowable motor current."
+                                    },
+                                    "PWM_Limit": {
+                                        "type": "integer",
+                                        "description": "Maximum allowable PWM output."
+                                    },
+                                    "Velocity_Limit": {
+                                        "type": "integer",
+                                        "description": "Maximum allowable velocity."
+                                    },
+                                    "Max_Position_Limit": {
+                                        "type": "integer",
+                                        "description": "Upper limit of the position range."
+                                    },
+                                    "Min_Position_Limit": {
+                                        "type": "integer",
+                                        "description": "Lower limit of the position range."
+                                    },
+                                    "Temperature_Limit": {
+                                        "type": "integer",
+                                        "description": "Maximum allowed temperature before error shutdown."
+                                    }
+                                },
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "ID"
+                        ],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": [
+                "port_name",
+                "baud_rate",
+                "joint",
+                "period"
+            ],
+            "additionalProperties": false
+        }
+    },
+    "required": [
+        "shm_config",
+        "dynamixel_hardware_shm"
+    ],
+    "additionalProperties": false
+}

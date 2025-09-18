@@ -1,0 +1,15 @@
+dynamixel_hardware_shm:
+  period: 0.01
+  port_name: /dev/ttyUSB0
+  baud_rate: 1000000
+  joint:
+    # LINK_0
+    - { ID: 81, DynamixelSettings: { Return_Delay_Time: 0, Operating_Mode: 3 } }
+    # LINK_1
+    - { ID: 82, DynamixelSettings: { Return_Delay_Time: 0, Operating_Mode: 3 } }
+    # LINK_2
+    - { ID: 11, DynamixelSettings: { Return_Delay_Time: 0, Operating_Mode: 3 } }
+    # LINK_3
+    - { ID: 83, DynamixelSettings: { Return_Delay_Time: 0, Operating_Mode: 3 } }
+    # LINK_4
+    - { ID: 84, DynamixelSettings: { Return_Delay_Time: 0, Operating_Mode: 3 } }
