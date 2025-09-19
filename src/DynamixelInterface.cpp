@@ -1,58 +1,68 @@
 #include "DynamixelInterface.h"
 
 DynamixelInterface::DynamixelInterface()
-    : dxl_wb_(new DynamixelWorkbench)
+    : dxl_wb_(std::make_unique<DynamixelWorkbench>())
 {
 }
 
 DynamixelInterface::~DynamixelInterface()
 {
-    delete dxl_wb_;
 }
 
 bool DynamixelInterface::initialize(YAML::Node &n)
 {
-    // YAML::Node n;
-    // try
-    // {
-    //     // check fname
-    //     n = YAML::LoadFile(yaml_file);
-    // }
-    // catch (const std::exception &)
-    // {
-    //     std::cerr << "parameter file [" << yaml_file << "] can not open" << std::endl;
-    //     return false;
-    // }
+    bool ret;
+
+    ret = setParams(n);
+    if (!ret)
+    {
+        std::cerr << "error setParams" << std::endl;
+        return ret;
+    }
+
+    ret = loadDynamixels();
+    if (!ret)
+    {
+        std::cerr << "error loadDynamixels" << std::endl;
+        return ret;
+    }
+
+    ret = initDynamixels();
+    if (!ret)
+    {
+        std::cerr << "error initDynamixels" << std::endl;
+        return ret;
+    }
+
+    ret = initControlItems();
+    if (!ret)
+    {
+        std::cerr << "error initControlItems" << std::endl;
+        return ret;
+    }
+
+    ret = initSDKHandlers();
+    if (!ret)
+    {
+        std::cerr << "error initSDKHandlers" << std::endl;
+        return ret;
+    }
+    return ret;
+}
+
+bool DynamixelInterface::setParams(YAML::Node &n)
+{
 
     bool res;
-
-    // res = readValue<HardwareIFSettings>(n, "HardwareIFSettings", h_settings);
-    // if (res)
-    // {
-    //     // std::cerr << "HardwareIFSettings: " << std::endl;
-    //     // // std::cerr << "  dxl_read_period: " << h_settings.dxl_read_period << std::endl;
-    //     // // std::cerr << "  dxl_write_period: " << h_settings.dxl_write_period << std::endl;
-    //     // std::cerr << "  period: " << h_settings.period << std::endl;
-    // }
-    // else
-    // {
-    //     std::cerr << "fail :struct:" << std::endl;
-    //     return false;
-    // }
 
     std::string port_name = n["HardwareIFSettings"]["port_name"].as<std::string>();
     int32_t baud_rate = n["HardwareIFSettings"]["baud_rate"].as<int32_t>();
 
     dx_info.clear();
-    for (auto it_j = n["Joint"].begin(); it_j != n["Joint"].end(); ++it_j)
+    for (auto it_j : n["HardwareIFSettings"]["joint"])
     {
         DynamixelInfo info;
-        std::string name = it_j->first.as<std::string>();
-        auto values = it_j->second;
-
-        info.name = name;
-        info.id = -1;
-        for (auto it = values.begin(); it != values.end(); ++it)
+        for (auto it = it_j.begin(); it != it_j.end(); ++it)
         {
             std::string key = it->first.as<std::string>();
             if (key == "ID")
@@ -101,7 +111,7 @@ bool DynamixelInterface::initDynamixels()
             if (result == false)
             {
                 std::cerr << log << std::endl;
-                std::cerr << "Failed to write value[" << setting.value << "] on items[" << setting.item_name << "] to Dynamixel[Name : " << info.name << ", ID : " << id << "]" << std::endl;
+                std::cerr << "Failed to write value[" << setting.value << "] on items[" << setting.item_name << "] to Dynamixel[ ID : " << id << "]" << std::endl;
                 return false;
             }
         }
@@ -130,7 +140,7 @@ bool DynamixelInterface::loadDynamixels(void)
         }
         else
         {
-            std::cout << "Name : " << dxl.name << ", ID : " << (int32_t)dxl.id << ", Model Number : " << model_number << std::endl;
+            std::cout << "ID : " << (int32_t)dxl.id << ", Model Number : " << model_number << std::endl;
         }
     }
 

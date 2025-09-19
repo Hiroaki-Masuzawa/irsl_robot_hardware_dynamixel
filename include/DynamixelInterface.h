@@ -6,6 +6,7 @@
 // #include "irsl/simple_yaml_parser.hpp"
 // #include "common.h"
 #include <yaml-cpp/yaml.h>
+#include <memory>
 
 using namespace irsl_shm_controller;
 // using namespace irsl_common_utils;
@@ -31,7 +32,7 @@ typedef struct
  */
 struct DynamixelInfo
 {
-    std::string name;
+    // std::string name;
     int8_t id;
     std::vector<ItemValue> dxl_setting;
 };
@@ -65,6 +66,8 @@ public:
      * @return false 失敗（ファイル読み込みやパースエラー）
      */
     bool initialize(YAML::Node& n);
+
+    bool setParams(YAML::Node& n);
 
     /**
      * @brief Dynamixel Workbench を初期化する
@@ -172,7 +175,7 @@ public:
         const std::vector<irsl_float_type> &pos_float_vec);
 
 private:
-    DynamixelWorkbench *dxl_wb_;
+    std::unique_ptr<DynamixelWorkbench> dxl_wb_;
     // HardwareIFSettings h_settings;
     std::vector<DynamixelInfo> dx_info;
     std::map<std::string, const ControlItem *> control_items_;

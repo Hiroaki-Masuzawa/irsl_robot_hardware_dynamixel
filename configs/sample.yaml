@@ -2,36 +2,20 @@ SHMSettings:
   hash: 8888
   shm_key: 8888
   jointType:
-  - PositionCommand
-  - PositionGains
-# ControllerIFSettingsはイメージ
-ControllerIFSettings: 
-  publish_period: 0.01
-  command_topic_name: /AssembleRobot/joint_controller/command
-  state_topic_name: /AssembleRobot/joint_states
+    - PositionCommand
+    - PositionGains
 HardwareIFSettings:
   period: 0.01
   port_name: /dev/ttyUSB0
   baud_rate: 1000000
-Joint:
-  LINK_0:
-    ID: 81 
-    Return_Delay_Time: 0
-    Operating_Mode: 3
-  LINK_1:
-    ID: 82 
-    Return_Delay_Time: 0
-    Operating_Mode: 3
-  LINK_2:
-    ID: 11 
-    Return_Delay_Time: 0
-    Operating_Mode: 3
-  LINK_3:
-    ID: 83 
-    Return_Delay_Time: 0
-    Operating_Mode: 3
-  LINK_4:
-    ID: 84 
-    Return_Delay_Time: 0
-    Operating_Mode: 3
-
+  joint:
+    # LINK_0
+    - { ID: 81, Return_Delay_Time: 0, Operating_Mode: 3 }
+    # LINK_1
+    - { ID: 82, Return_Delay_Time: 0, Operating_Mode: 3 }
+    # LINK_2
+    - { ID: 11, Return_Delay_Time: 0, Operating_Mode: 3 }
+    # LINK_3
+    - { ID: 83, Return_Delay_Time: 0, Operating_Mode: 3 }
+    # LINK_4
+    - { ID: 84, Return_Delay_Time: 0, Operating_Mode: 3 }

@@ -46,35 +46,10 @@ int main(int argc, char **argv)
 
     DynamixelInterface di;
     bool ret;
-
     ret = di.initialize(n);
     if (!ret)
     {
-        std::cerr << "error initialize" << std::endl;
-    }
-
-    ret = di.loadDynamixels();
-    if (!ret)
-    {
-        std::cerr << "error loadDynamixels" << std::endl;
-    }
-
-    ret = di.initDynamixels();
-    if (!ret)
-    {
-        std::cerr << "error initDynamixels" << std::endl;
-    }
-
-    ret = di.initControlItems();
-    if (!ret)
-    {
-        std::cerr << "error initControlItems" << std::endl;
-    }
-
-    ret = di.initSDKHandlers();
-    if (!ret)
-    {
-        std::cerr << "error initSDKHandlers" << std::endl;
+        return -1;
     }
 
     ShmSettings ss;
@@ -100,9 +75,15 @@ int main(int argc, char **argv)
     bool res;
     res = sm.openSharedMemory(true);
     std::cout << "open: " << res << std::endl;
+    if(!res){
+        return -1;
+    }
 
     res = sm.writeHeader();
     std::cout << "writeHeader: " << res << std::endl;
+    if(!res){
+        return -1;
+    }
 
     std::cout << "isOpen: " << sm.isOpen() << std::endl;
 
@@ -147,18 +128,23 @@ int main(int argc, char **argv)
     {
         tm.sleepUntil(interval_ns);
         tm.sync();
-
+        
+        // read current value from Dynamixel
         di.getDynamixelStatus(cur_pos_vec, cur_vel_vec, cur_cur_vec);
+        // convert to floating value
         di.convertPosition(cur_pos_vec, cur_pos_float_vec);
         di.convertVelocity(cur_vel_vec, cur_vel_float_vec);
         // di.convertCurrent(cur_cur_vec, cur_cur_float_vec);
         di.convertTorque(cur_cur_vec, cur_torque_float_vec);
 
+        // write to sheread memory
         sm.writePositionCurrent(cur_pos_float_vec);
         sm.writeVelocityCurrent(cur_vel_float_vec);
         sm.writeTorqueCurrent(cur_torque_float_vec);
-
+        
+        // read command value from shered memory
         sm.readPositionCommand(cmd_pos_float_vec);
+        // write comand value to Dynamixel
         di.writePosition(cmd_pos_float_vec);
 
 #ifdef DEBUG
