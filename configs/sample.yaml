@@ -3,6 +3,7 @@ SHMSettings:
   shm_key: 8888
   jointType:
   - PositionCommand
+  - PositionGains
 # ControllerIFSettingsはイメージ
 ControllerIFSettings: 
   publish_period: 0.01
