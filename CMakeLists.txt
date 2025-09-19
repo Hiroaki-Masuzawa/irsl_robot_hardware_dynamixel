@@ -35,7 +35,7 @@ include_directories(
 #message("VARIABLES<<<<")
 
 add_executable(robot_control   src/robot_control.cpp)
-add_executable(robot_hardware  src/robot_hardware.cpp)
+add_executable(robot_hardware  src/robot_hardware.cpp src/DynamixelInterface.cpp )
 
 # include_directories(
 target_link_libraries(robot_control  ${YAML_CPP_LIBRARIES} irsl_common_utils irsl_shm_controller)
