@@ -1,0 +1,86 @@
+{
+    "type": "object",
+    "properties": {
+        "SHMSettings": {
+            "type": "object",
+            "properties": {
+                "hash": {
+                    "type": "integer"
+                },
+                "shm_key": {
+                    "type": "integer"
+                },
+                "jointType": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "PositionCommand",
+                            "PositionGains",
+                            "VelocityCommand",
+                            "VelocityGains",
+                            "TorqueCommand",
+                            "TorqueGains",
+                            "MotorTemperature",
+                            "MotorCurrent"
+                        ]
+                    }
+                }
+            },
+            "required": [
+                "hash",
+                "shm_key",
+                "jointType"
+            ],
+            "additionalProperties": false
+        },
+        "HardwareIFSettings": {
+            "type": "object",
+            "properties": {
+                "port_name": {
+                    "type": "string"
+                },
+                "baud_rate": {
+                    "type": "integer"
+                },
+                "period": {
+                    "type": "number"
+                },
+                "joint": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "ID": {
+                                "type": "integer"
+                            },
+                            "CommunicationGroupName": {
+                                "type": "string"
+                            },
+                            "DynamixelSettings": {
+                                "type": "object",
+                                "additionalProperties": true
+                            }
+                        },
+                        "required": [
+                            "ID"
+                        ],
+                        "additionalProperties": false
+                    }
+                }
+            },
+            "required": [
+                "port_name",
+                "baud_rate",
+                "joint",
+                "period"
+            ],
+            "additionalProperties": false
+        }
+    },
+    "required": [
+        "SHMSettings",
+        "HardwareIFSettings"
+    ],
+    "additionalProperties": false
+}

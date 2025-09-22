@@ -12,53 +12,60 @@ DynamixelInterface::~DynamixelInterface()
 bool DynamixelInterface::initialize(YAML::Node &settings)
 {
     // Initialize the interface by setting parameters from settings
-    bool ret = setParams(settings);
-    if (!ret) {
+    bool result = parseParamsFromYAML(settings);
+    if (!result)
+    {
         std::cerr << "Error: unable to set parameters" << std::endl;
-        return false;  // Return immediately on failure
+        return false; // Return immediately on failure
     }
 
     // Discover connected Dynamixels
-    ret = discoverConnectedDynamixels();
-    if (!ret) {
+    result = discoverConnectedDynamixels();
+    if (!result)
+    {
         std::cerr << "Error: unable to discover connected Dynamixels" << std::endl;
-        return false;  // Return immediately on failure
+        return false; // Return immediately on failure
     }
 
     // Initialize settings for the Dynamixels
-    ret = InitializeDynamixelSettings();
-    if (!ret) {
+    result = writeInitialSettings();
+    if (!result)
+    {
         std::cerr << "Error: unable to initialize Dynamixel settings" << std::endl;
-        return false;  // Return immediately on failure
+        return false; // Return immediately on failure
     }
 
     // Initialize control items (e.g. motor controllers, sensors)
-    ret = initializeControlItems();
-    if (!ret) {
+    result = initializeControlItems();
+    if (!result)
+    {
         std::cerr << "Error: unable to initialize control items" << std::endl;
-        return false;  // Return immediately on failure
+        return false; // Return immediately on failure
     }
 
     // Initialize SDK handlers for Dynamixel communication
-    ret = initSDKHandlers();
-    if (!ret) {
+    result = initSDKHandlers();
+    if (!result)
+    {
         std::cerr << "Error: unable to initialize SDK handlers" << std::endl;
-        return false;  // Return immediately on failure
+        return false; // Return immediately on failure
     }
+    return true;
 }
 
-bool DynamixelInterface::setParams(YAML::Node &settings)
+bool DynamixelInterface::parseParamsFromYAML(YAML::Node &settings)
 {
 
-    bool res;
     auto const port_name = settings["port_name"].as<std::string>();
     auto const baud_rate = settings["baud_rate"].as<int32_t>();
 
     dx_info.clear();
+    size_t index = 0;
 
-    for (auto joint : settings["joint"])
+    for (const auto &joint : settings["joint"])
     {
         DynamixelInfo info;
+        info.comm_group_name = "default";
         for (auto joint_data = joint.begin(); joint_data != joint.end(); ++joint_data)
         {
             std::string key = joint_data->first.as<std::string>();
@@ -66,10 +73,14 @@ bool DynamixelInterface::setParams(YAML::Node &settings)
             {
                 info.id = (int8_t)(joint_data->second.as<int32_t>());
             }
+            else if (key == "CommunicationGroupName")
+            {
+                info.comm_group_name = joint_data->second.as<std::string>();
+            }
             else if (key == "DynamixelSettings")
             {
                 auto const dx_settings = joint_data->second;
-                for (auto dx_setting : dx_settings)
+                for (const auto &dx_setting : dx_settings)
                 {
                     ItemValue item_value{dx_setting.first.as<std::string>(), dx_setting.second.as<int32_t>()};
                     info.dxl_setting.push_back(item_value);
@@ -79,12 +90,21 @@ bool DynamixelInterface::setParams(YAML::Node &settings)
                 }
             }
         }
+        comm_group_names.insert(info.comm_group_name);
         dx_info.push_back(info);
+        dx_info_index_map[info.id] = index++;
     }
+
+    comm_group_id_map.clear();
+    for (const auto &dx_i : dx_info)
+    {
+        comm_group_id_map[dx_i.comm_group_name].push_back(dx_i.id);
+    }
+
     return initializeDynamixelWorkbench(port_name, baud_rate);
 }
 
-bool DynamixelInterface::initializeDynamixelWorkbench(const std::string& port_name, int32_t baud_rate)
+bool DynamixelInterface::initializeDynamixelWorkbench(const std::string &port_name, int32_t baud_rate)
 {
     // Initialize a flag to track the result of the operation
     bool result = false;
@@ -101,27 +121,27 @@ bool DynamixelInterface::initializeDynamixelWorkbench(const std::string& port_na
         std::cerr << "Error initializing Dynamixel Workbench: " << log << std::endl;
     }
 
-    return result;  // Return true on success, false on failure
+    return result; // Return true on success, false on failure
 }
 
-bool DynamixelInterface::InitializeDynamixelSettings()
+bool DynamixelInterface::writeInitialSettings()
 {
     const char *log;
 
-    for (auto info : dx_info)
+    for (const auto &info : dx_info)
     {
         // Get the current ID
         uint8_t id = info.id;
         // torque off
         dxl_wb_->torqueOff(id, &log);
-        for (auto const &setting : info.dxl_setting)
+        for (const auto &setting : info.dxl_setting)
         {
             bool result = dxl_wb_->itemWrite(id, setting.item_name.c_str(), setting.value, &log);
             if (result == false)
             {
                 std::cerr << log << std::endl;
                 std::cerr << "Failed to write value[" << setting.value << "] on items[" << setting.item_name << "] to Dynamixel[ ID : " << id << "]" << std::endl;
-                return false;  // Return immediately if any setting fails
+                return false; // Return immediately if any setting fails
             }
         }
         // trque on
@@ -144,7 +164,7 @@ bool DynamixelInterface::discoverConnectedDynamixels(void)
         if (result == false)
         {
             std::cerr << log << std::endl;
-            std::cerr << "Can't find Dynamixel ID " << id << std::endl;
+            std::cerr << "Can't find Dynamixel ID " << (int32_t)id << std::endl;
             return result;
         }
         else
@@ -248,144 +268,232 @@ bool DynamixelInterface::initSDKHandlers(void)
     return result;
 }
 
-size_t DynamixelInterface::get_dx_info_size()
+size_t DynamixelInterface::getNumberOfDynamixels()
 {
     return dx_info.size();
 }
 
 void DynamixelInterface::convertPosition(
     const std::vector<int32_t> &pos_vec,
-    std::vector<irsl_float_type> &pos_float_vec)
+    std::vector<irsl_shm_controller::irsl_float_type> &pos_float_vec)
 {
     if (pos_vec.size() != pos_float_vec.size())
     {
         pos_float_vec.resize(pos_vec.size());
     }
-    for (int i = 0; i < get_dx_info_size(); i++)
+    for (size_t i = 0; i < dx_info.size(); i++)
     {
-        irsl_float_type angle = dxl_wb_->convertValue2Radian(dx_info[i].id, pos_vec[i]);
+        irsl_shm_controller::irsl_float_type angle = dxl_wb_->convertValue2Radian(dx_info[i].id, pos_vec[i]);
         pos_float_vec[i] = angle;
     }
 }
 
 void DynamixelInterface::convertVelocity(
     const std::vector<int32_t> &vel_vec,
-    std::vector<irsl_float_type> &vel_float_vec)
+    std::vector<irsl_shm_controller::irsl_float_type> &vel_float_vec)
 {
     if (vel_vec.size() != vel_float_vec.size())
     {
         vel_float_vec.resize(vel_vec.size());
     }
-    for (int i = 0; i < get_dx_info_size(); i++)
+    for (size_t i = 0; i < dx_info.size(); i++)
     {
-        irsl_float_type vel = dxl_wb_->convertValue2Velocity(dx_info[i].id, vel_vec[i]);
+        irsl_shm_controller::irsl_float_type vel = dxl_wb_->convertValue2Velocity(dx_info[i].id, vel_vec[i]);
         vel_float_vec[i] = vel;
     }
 }
 
 void DynamixelInterface::convertCurrent(
     const std::vector<int32_t> &cur_vec,
-    std::vector<irsl_float_type> &cur_float_vec)
+    std::vector<irsl_shm_controller::irsl_float_type> &cur_float_vec)
 {
     if (cur_vec.size() != cur_float_vec.size())
     {
         cur_float_vec.resize(cur_vec.size());
     }
-    for (int i = 0; i < get_dx_info_size(); i++)
+    for (size_t i = 0; i < dx_info.size(); i++)
     {
-        irsl_float_type cur = dxl_wb_->convertValue2Current(dx_info[i].id, cur_vec[i]);
+        irsl_shm_controller::irsl_float_type cur = dxl_wb_->convertValue2Current(dx_info[i].id, cur_vec[i]);
         cur_float_vec[i] = cur;
     }
 }
 
 void DynamixelInterface::convertTorque(
     const std::vector<int32_t> &cur_vec,
-    std::vector<irsl_float_type> &torque_float_vec)
+    std::vector<irsl_shm_controller::irsl_float_type> &torque_float_vec)
 {
     if (cur_vec.size() != torque_float_vec.size())
     {
         torque_float_vec.resize(cur_vec.size());
     }
-    for (int i = 0; i < get_dx_info_size(); i++)
+    for (size_t i = 0; i < dx_info.size(); i++)
     {
-        irsl_float_type tor = dxl_wb_->convertValue2Current(dx_info[i].id, cur_vec[i]);
+        irsl_shm_controller::irsl_float_type tor = dxl_wb_->convertValue2Current(dx_info[i].id, cur_vec[i]);
         torque_float_vec[i] = tor;
     }
 }
 
 void DynamixelInterface::convertPositionCmd(
-    const std::vector<irsl_float_type> &pos_float_vec,
+    const std::vector<irsl_shm_controller::irsl_float_type> &pos_float_vec,
     std::vector<int32_t> &dynamixel_position)
 {
-    uint8_t id_vec_size = get_dx_info_size();
+    size_t id_vec_size = dx_info.size();
     dynamixel_position.resize(id_vec_size);
-    for (int i = 0; i < id_vec_size; i++)
+    for (size_t i = 0; i < id_vec_size; i++)
     {
         dynamixel_position[i] = dxl_wb_->convertRadian2Value(dx_info[i].id, pos_float_vec[i]);
     }
 }
 
-bool DynamixelInterface::writePosition(
-    std::vector<int32_t> &dynamixel_position)
+bool DynamixelInterface::writeBySyncHandler(
+    uint8_t handler_index,
+    const std::vector<int32_t> &value_vector)
 {
     bool result = false;
-    const char *log = NULL;
+    const char *log = nullptr;
 
-    uint8_t id_vec_size = get_dx_info_size();
-    std::vector<uint8_t> id_vec(id_vec_size);
-    for (int i = 0; i < id_vec_size; i++)
+    std::vector<int32_t> value_tmp;
+
+    for (const auto &group_pair : comm_group_id_map)
     {
-        id_vec[i] = dx_info[i].id;
+        const std::vector<uint8_t> &comm_group_id = group_pair.second;
+
+        value_tmp.clear();
+        for (uint8_t id : comm_group_id)
+        {
+            auto it = dx_info_index_map.find(id);
+            if (it != dx_info_index_map.end())
+            {
+                value_tmp.push_back(value_vector[it->second]);
+            }
+            else
+            {
+                std::cerr << "ID not found in dx_info_index_map: " << static_cast<int>(id) << std::endl;
+                return false;
+            }
+        }
+
+        result = dxl_wb_->syncWrite(
+            handler_index,
+            const_cast<uint8_t *>(comm_group_id.data()), comm_group_id.size(),
+            value_tmp.data(), 1, &log);
+        if (!result)
+        {
+            std::cerr << log << std::endl;
+            return false;
+        }
     }
 
-    result = dxl_wb_->syncWrite(
-        SYNC_WRITE_HANDLER_FOR_GOAL_POSITION,
-        id_vec.data(), id_vec_size,
-        dynamixel_position.data(), 1, &log);
-    if (result == false)
-    {
-        std::cerr << log << std::endl;
-    }
-    return result;
+    return true;
 }
+
+
+bool DynamixelInterface::writePosition(const std::vector<int32_t> &dynamixel_position)
+{
+    return writeBySyncHandler(SYNC_WRITE_HANDLER_FOR_GOAL_POSITION, dynamixel_position);
+}
+
+bool DynamixelInterface::writeVelocity(const std::vector<int32_t> &dynamixel_velocity)
+{
+    return writeBySyncHandler(SYNC_WRITE_HANDLER_FOR_GOAL_VELOCITY, dynamixel_velocity);
+}
+
+
+// bool DynamixelInterface::writePosition(
+//     const std::vector<int32_t> &dynamixel_position)
+// {
+//     bool result = false;
+//     const char *log = NULL;
+
+//     std::vector<int32_t> dynamixel_position_tmp;
+//     for (const auto &group_pair : comm_group_id_map)
+//     {
+//         const std::string &group_name = group_pair.first;
+//         const std::vector<uint8_t> &comm_group_id = group_pair.second;
+
+//         dynamixel_position_tmp.clear();
+//         for (uint8_t id : comm_group_id)
+//         {
+//             auto it = dx_info_index_map.find(id);
+//             if (it != dx_info_index_map.end())
+//             {
+//                 dynamixel_position_tmp.push_back(dynamixel_position[it->second]);
+//             }
+//             else
+//             {
+//                 std::cerr << "ID not found in dx_info_index_map: " << static_cast<int>(id) << std::endl;
+//                 return false;
+//             }
+//         }
+
+//         result = dxl_wb_->syncWrite(
+//             SYNC_WRITE_HANDLER_FOR_GOAL_POSITION,
+//             const_cast<uint8_t *>(comm_group_id.data()), comm_group_id.size(),
+//             dynamixel_position_tmp.data(), 1, &log);
+//         if (result == false)
+//         {
+//             std::cerr << log << std::endl;
+//             return result;
+//         }
+//     }
+//     return result;
+// }
+
+// bool DynamixelInterface::writeVelocity(
+//     const std::vector<int32_t> &dynamixel_velocity)
+// {
+//     bool result = false;
+//     const char *log = NULL;
+
+//     std::vector<int32_t> dynamixel_velocity_tmp;
+//     for (const auto &group_pair : comm_group_id_map)
+//     {
+//         const std::string &group_name = group_pair.first;
+//         const std::vector<uint8_t> &comm_group_id = group_pair.second;
+
+//         dynamixel_velocity_tmp.clear();
+//         for (uint8_t id : comm_group_id)
+//         {
+//             auto it = dx_info_index_map.find(id);
+//             if (it != dx_info_index_map.end())
+//             {
+//                 dynamixel_velocity_tmp.push_back(dynamixel_velocity[it->second]);
+//             }
+//             else
+//             {
+//                 std::cerr << "ID not found in dx_info_index_map: " << static_cast<int>(id) << std::endl;
+//                 return false;
+//             }
+//         }
+
+//         result = dxl_wb_->syncWrite(
+//             SYNC_WRITE_HANDLER_FOR_GOAL_VELOCITY,
+//             const_cast<uint8_t *>(comm_group_id.data()), comm_group_id.size(),
+//             dynamixel_velocity_tmp.data(), 1, &log);
+//         if (result == false)
+//         {
+//             std::cerr << log << std::endl;
+//             return result;
+//         }
+//     }
+//     return result;
+// }
+
 
 void DynamixelInterface::convertVelocityCmd(
-    const std::vector<irsl_float_type> &vel_float_vec,
+    const std::vector<irsl_shm_controller::irsl_float_type> &vel_float_vec,
     std::vector<int32_t> &dynamixel_velocity)
 {
-    uint8_t id_vec_size = get_dx_info_size();
+    size_t id_vec_size = dx_info.size();
     dynamixel_velocity.resize(id_vec_size);
-    for (int i = 0; i < id_vec_size; i++)
+    for (size_t i = 0; i < id_vec_size; i++)
     {
-        dynamixel_velocity[i] = dxl_wb_->convertValue2Velocity(dx_info[i].id, vel_float_vec[i]);
+        dynamixel_velocity[i] = dxl_wb_->convertVelocity2Value(dx_info[i].id, vel_float_vec[i]);
     }
 }
 
-bool DynamixelInterface::writeVelocity(
-    std::vector<int32_t> &dynamixel_velocity)
-{
-    bool result = false;
-    const char *log = NULL;
 
-    uint8_t id_vec_size = get_dx_info_size();
-    std::vector<uint8_t> id_vec(id_vec_size);
-    for (int i = 0; i < id_vec_size; i++)
-    {
-        id_vec[i] = dx_info[i].id;
-    }
-
-    result = dxl_wb_->syncWrite(
-        SYNC_WRITE_HANDLER_FOR_GOAL_VELOCITY,
-        id_vec.data(), id_vec_size,
-        dynamixel_velocity.data(), 1, &log);
-    if (result == false)
-    {
-        std::cerr << log << std::endl;
-    }
-    return result;
-}
-
-void DynamixelInterface::getDynamixelStatus(
+void DynamixelInterface::getDynamixelCurrentStatus(
     std::vector<int32_t> &pos_vec,
     std::vector<int32_t> &vel_vec,
     std::vector<int32_t> &cur_vec)
@@ -393,12 +501,7 @@ void DynamixelInterface::getDynamixelStatus(
     bool result = false;
     const char *log = NULL;
 
-    uint8_t id_vec_size = get_dx_info_size();
-    std::vector<uint8_t> id_vec(id_vec_size);
-    for (int i = 0; i < id_vec_size; i++)
-    {
-        id_vec[i] = dx_info[i].id;
-    }
+    size_t id_vec_size = dx_info.size();
 
     if (pos_vec.size() != id_vec_size)
     {
@@ -413,50 +516,77 @@ void DynamixelInterface::getDynamixelStatus(
         cur_vec.resize(id_vec_size);
     }
 
-    result = dxl_wb_->syncRead(
-        SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
-        id_vec.data(), id_vec_size,
-        &log);
-    if (!result)
+    for (const auto &group_pair : comm_group_id_map)
     {
-        std::cerr << "syncRead failed " << log << std::endl;
-        // continue; // グループ単位でスキップ
-        return;
-    }
+        const std::string &group_name = group_pair.first;
+        const std::vector<uint8_t> &comm_group_id = group_pair.second;
 
-    result = dxl_wb_->getSyncReadData(
-        SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
-        id_vec.data(), id_vec_size,
-        control_items_["Present_Position"]->address,
-        control_items_["Present_Position"]->data_length,
-        pos_vec.data(),
-        &log);
-    if (!result)
-    {
-        std::cerr << "getSyncReadData position failed " << log << std::endl;
-    }
+        size_t comm_group_id_size = comm_group_id.size();
+        std::vector<int32_t> pos_vec_tmp(comm_group_id.size());
+        std::vector<int32_t> vel_vec_tmp(comm_group_id.size());
+        std::vector<int32_t> cur_vec_tmp(comm_group_id.size());
 
-    result = dxl_wb_->getSyncReadData(
-        SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
-        id_vec.data(), id_vec_size,
-        control_items_["Present_Velocity"]->address,
-        control_items_["Present_Velocity"]->data_length,
-        vel_vec.data(),
-        &log);
-    if (result == false)
-    {
-        std::cerr << "getSyncReadData velocity failed " << log << std::endl;
-    }
+        result = dxl_wb_->syncRead(
+            SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
+            const_cast<uint8_t *>(comm_group_id.data()), comm_group_id_size,
+            &log);
+        if (!result)
+        {
+            std::cerr << "syncRead failed " << log << std::endl;
+            return;
+        }
 
-    result = dxl_wb_->getSyncReadData(
-        SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
-        id_vec.data(), id_vec_size,
-        control_items_["Present_Current"]->address,
-        control_items_["Present_Current"]->data_length,
-        cur_vec.data(),
-        &log);
-    if (result == false)
-    {
-        std::cerr << "getSyncReadData current failed " << log << std::endl;
+        result = dxl_wb_->getSyncReadData(
+            SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
+            const_cast<uint8_t *>(comm_group_id.data()), comm_group_id_size,
+            control_items_["Present_Position"]->address,
+            control_items_["Present_Position"]->data_length,
+            pos_vec_tmp.data(),
+            &log);
+        if (!result)
+        {
+            std::cerr << "getSyncReadData position failed " << log << std::endl;
+        }
+
+        result = dxl_wb_->getSyncReadData(
+            SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
+            const_cast<uint8_t *>(comm_group_id.data()), comm_group_id_size,
+            control_items_["Present_Velocity"]->address,
+            control_items_["Present_Velocity"]->data_length,
+            vel_vec_tmp.data(),
+            &log);
+        if (result == false)
+        {
+            std::cerr << "getSyncReadData velocity failed " << log << std::endl;
+        }
+
+        result = dxl_wb_->getSyncReadData(
+            SYNC_READ_HANDLER_FOR_PRESENT_POSITION_VELOCITY_CURRENT,
+            const_cast<uint8_t *>(comm_group_id.data()), comm_group_id_size,
+            control_items_["Present_Current"]->address,
+            control_items_["Present_Current"]->data_length,
+            cur_vec_tmp.data(),
+            &log);
+        if (result == false)
+        {
+            std::cerr << "getSyncReadData current failed " << log << std::endl;
+        }
+
+        for (size_t j = 0; j < comm_group_id_size; ++j)
+        {
+            uint8_t id = comm_group_id[j];
+            auto it = dx_info_index_map.find(id);
+            if (it != dx_info_index_map.end())
+            {
+                size_t idx = it->second;
+                pos_vec[idx] = pos_vec_tmp[j];
+                vel_vec[idx] = vel_vec_tmp[j];
+                cur_vec[idx] = cur_vec_tmp[j];
+            }
+            else
+            {
+                std::cerr << "Unknown ID in dx_info_index_map: " << static_cast<int>(id) << std::endl;
+            }
+        }
     }
 }

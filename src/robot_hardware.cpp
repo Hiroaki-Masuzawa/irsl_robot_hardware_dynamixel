@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     ss.hash = shm_settings["hash"].as<int32_t>();
     ss.shm_key = shm_settings["shm_key"].as<int32_t>();
 
-    ss.numJoints = di.get_dx_info_size();
+    ss.numJoints = di.getNumberOfDynamixels();
     ss.numForceSensors = 0;
     ss.numImuSensors = 0;
     ss.jointType = 0;
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
     int cntr = 0;
     tm.start();
 
-    size_t joint_num = di.get_dx_info_size();
+    size_t joint_num = di.getNumberOfDynamixels();
     std::vector<int32_t> cur_pos_vec(joint_num);
     std::vector<int32_t> cur_vel_vec(joint_num);
     std::vector<int32_t> cur_cur_vec(joint_num);
@@ -118,7 +118,7 @@ int main(int argc, char **argv)
     std::vector<irsl_float_type> cmd_vel_float_vec(joint_num);
     std::vector<int32_t> dynamixel_velocity(joint_num);
 
-    di.getDynamixelStatus(cur_pos_vec, cur_vel_vec, cur_cur_vec);
+    di.getDynamixelCurrentStatus(cur_pos_vec, cur_vel_vec, cur_cur_vec);
 
     di.convertPosition(cur_pos_vec, cur_pos_float_vec);
     di.convertVelocity(cur_vel_vec, cur_vel_float_vec);
@@ -149,7 +149,7 @@ int main(int argc, char **argv)
         tm.sync();
 
         // read current value from Dynamixel
-        di.getDynamixelStatus(cur_pos_vec, cur_vel_vec, cur_cur_vec);
+        di.getDynamixelCurrentStatus(cur_pos_vec, cur_vel_vec, cur_cur_vec);
         // convert to floating value
         di.convertPosition(cur_pos_vec, cur_pos_float_vec);
         di.convertVelocity(cur_vel_vec, cur_vel_float_vec);
