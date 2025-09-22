@@ -9,120 +9,129 @@ DynamixelInterface::~DynamixelInterface()
 {
 }
 
-bool DynamixelInterface::initialize(YAML::Node &n)
+bool DynamixelInterface::initialize(YAML::Node &settings)
 {
-    bool ret;
-
-    ret = setParams(n);
-    if (!ret)
-    {
-        std::cerr << "error setParams" << std::endl;
-        return ret;
+    // Initialize the interface by setting parameters from settings
+    bool ret = setParams(settings);
+    if (!ret) {
+        std::cerr << "Error: unable to set parameters" << std::endl;
+        return false;  // Return immediately on failure
     }
 
-    ret = loadDynamixels();
-    if (!ret)
-    {
-        std::cerr << "error loadDynamixels" << std::endl;
-        return ret;
+    // Discover connected Dynamixels
+    ret = discoverConnectedDynamixels();
+    if (!ret) {
+        std::cerr << "Error: unable to discover connected Dynamixels" << std::endl;
+        return false;  // Return immediately on failure
     }
 
-    ret = initDynamixels();
-    if (!ret)
-    {
-        std::cerr << "error initDynamixels" << std::endl;
-        return ret;
+    // Initialize settings for the Dynamixels
+    ret = InitializeDynamixelSettings();
+    if (!ret) {
+        std::cerr << "Error: unable to initialize Dynamixel settings" << std::endl;
+        return false;  // Return immediately on failure
     }
 
-    ret = initControlItems();
-    if (!ret)
-    {
-        std::cerr << "error initControlItems" << std::endl;
-        return ret;
+    // Initialize control items (e.g. motor controllers, sensors)
+    ret = initializeControlItems();
+    if (!ret) {
+        std::cerr << "Error: unable to initialize control items" << std::endl;
+        return false;  // Return immediately on failure
     }
 
+    // Initialize SDK handlers for Dynamixel communication
     ret = initSDKHandlers();
-    if (!ret)
-    {
-        std::cerr << "error initSDKHandlers" << std::endl;
-        return ret;
+    if (!ret) {
+        std::cerr << "Error: unable to initialize SDK handlers" << std::endl;
+        return false;  // Return immediately on failure
     }
-    return ret;
 }
 
-bool DynamixelInterface::setParams(YAML::Node &n)
+bool DynamixelInterface::setParams(YAML::Node &settings)
 {
 
     bool res;
-
-    std::string port_name = n["HardwareIFSettings"]["port_name"].as<std::string>();
-    int32_t baud_rate = n["HardwareIFSettings"]["baud_rate"].as<int32_t>();
+    auto const port_name = settings["port_name"].as<std::string>();
+    auto const baud_rate = settings["baud_rate"].as<int32_t>();
 
     dx_info.clear();
-    for (auto it_j : n["HardwareIFSettings"]["joint"])
+
+    for (auto joint : settings["joint"])
     {
         DynamixelInfo info;
-        for (auto it = it_j.begin(); it != it_j.end(); ++it)
+        for (auto joint_data = joint.begin(); joint_data != joint.end(); ++joint_data)
         {
-            std::string key = it->first.as<std::string>();
+            std::string key = joint_data->first.as<std::string>();
             if (key == "ID")
             {
-                info.id = (int8_t)(it->second.as<int32_t>());
+                info.id = (int8_t)(joint_data->second.as<int32_t>());
             }
-            else
+            else if (key == "DynamixelSettings")
             {
-                int32_t value = it->second.as<int32_t>();
-                ItemValue item_value = {key, value};
-                info.dxl_setting.push_back(item_value);
+                auto const dx_settings = joint_data->second;
+                for (auto dx_setting : dx_settings)
+                {
+                    ItemValue item_value{dx_setting.first.as<std::string>(), dx_setting.second.as<int32_t>()};
+                    info.dxl_setting.push_back(item_value);
+#ifdef DEBUG
+                    std::cout << "key: " << item_value.item_name << ", value: " << item_value.value << std::endl;
+#endif
+                }
             }
         }
         dx_info.push_back(info);
-        // std::cout << info.name << " " << (int32_t)info.id << std::endl;
     }
-    return this->initWorkbench(port_name, baud_rate);
+    return initializeDynamixelWorkbench(port_name, baud_rate);
 }
 
-bool DynamixelInterface::initWorkbench(const std::string port_name, const uint32_t baud_rate)
+bool DynamixelInterface::initializeDynamixelWorkbench(const std::string& port_name, int32_t baud_rate)
 {
+    // Initialize a flag to track the result of the operation
     bool result = false;
+
+    // Get a pointer to the log message in case initialization fails
     const char *log;
 
+    // Attempt to initialize Dynamixel Workbench using the provided port name and baud rate
     result = dxl_wb_->init(port_name.c_str(), baud_rate, &log);
+
+    // If initialization fails, print an error message with the log details
     if (result == false)
     {
-        std::cerr << log << std::endl;
+        std::cerr << "Error initializing Dynamixel Workbench: " << log << std::endl;
     }
 
-    return result;
+    return result;  // Return true on success, false on failure
 }
 
-bool DynamixelInterface::initDynamixels()
+bool DynamixelInterface::InitializeDynamixelSettings()
 {
     const char *log;
 
     for (auto info : dx_info)
     {
+        // Get the current ID
         uint8_t id = info.id;
+        // torque off
         dxl_wb_->torqueOff(id, &log);
         for (auto const &setting : info.dxl_setting)
         {
-            // std::cout << (int32_t)id << " " <<setting.item_name.c_str() << " " << setting.value << std::endl;
             bool result = dxl_wb_->itemWrite(id, setting.item_name.c_str(), setting.value, &log);
             if (result == false)
             {
                 std::cerr << log << std::endl;
                 std::cerr << "Failed to write value[" << setting.value << "] on items[" << setting.item_name << "] to Dynamixel[ ID : " << id << "]" << std::endl;
-                return false;
+                return false;  // Return immediately if any setting fails
             }
         }
-
+        // trque on
         dxl_wb_->torqueOn(id, &log);
     }
 
     return true;
 }
 
-bool DynamixelInterface::loadDynamixels(void)
+bool DynamixelInterface::discoverConnectedDynamixels(void)
 {
     bool result = false;
     const char *log;
@@ -147,7 +156,7 @@ bool DynamixelInterface::loadDynamixels(void)
     return result;
 }
 
-bool DynamixelInterface::initControlItems(void)
+bool DynamixelInterface::initializeControlItems(void)
 {
     if (dx_info.empty())
     {
@@ -157,7 +166,6 @@ bool DynamixelInterface::initControlItems(void)
 
     const char *log = nullptr;
 
-    // 最初の1つから取得（共通前提）
     uint8_t sample_id = dx_info.front().id;
 
     std::vector<std::string> keys = {
@@ -168,7 +176,6 @@ bool DynamixelInterface::initControlItems(void)
     {
         const ControlItem *item = dxl_wb_->getItemInfo(sample_id, key.c_str());
 
-        // 代替キーも考慮
         if (item == nullptr)
         {
             if (key == "Goal_Velocity")
@@ -195,8 +202,6 @@ bool DynamixelInterface::initSDKHandlers(void)
 {
     bool result = false;
     const char *log = NULL;
-
-    //   auto it = dynamixel_.begin();
 
     result = dxl_wb_->addSyncWriteHandler(control_items_["Goal_Position"]->address, control_items_["Goal_Position"]->data_length, &log);
     if (result == false)
@@ -308,25 +313,71 @@ void DynamixelInterface::convertTorque(
     }
 }
 
+void DynamixelInterface::convertPositionCmd(
+    const std::vector<irsl_float_type> &pos_float_vec,
+    std::vector<int32_t> &dynamixel_position)
+{
+    uint8_t id_vec_size = get_dx_info_size();
+    dynamixel_position.resize(id_vec_size);
+    for (int i = 0; i < id_vec_size; i++)
+    {
+        dynamixel_position[i] = dxl_wb_->convertRadian2Value(dx_info[i].id, pos_float_vec[i]);
+    }
+}
+
 bool DynamixelInterface::writePosition(
-    const std::vector<irsl_float_type> &pos_float_vec)
+    std::vector<int32_t> &dynamixel_position)
 {
     bool result = false;
     const char *log = NULL;
 
     uint8_t id_vec_size = get_dx_info_size();
     std::vector<uint8_t> id_vec(id_vec_size);
-    std::vector<int32_t> dynamixel_position(id_vec_size);
     for (int i = 0; i < id_vec_size; i++)
     {
         id_vec[i] = dx_info[i].id;
-        dynamixel_position[i] = dxl_wb_->convertRadian2Value(id_vec[i], pos_float_vec[i]);
     }
 
     result = dxl_wb_->syncWrite(
         SYNC_WRITE_HANDLER_FOR_GOAL_POSITION,
         id_vec.data(), id_vec_size,
         dynamixel_position.data(), 1, &log);
+    if (result == false)
+    {
+        std::cerr << log << std::endl;
+    }
+    return result;
+}
+
+void DynamixelInterface::convertVelocityCmd(
+    const std::vector<irsl_float_type> &vel_float_vec,
+    std::vector<int32_t> &dynamixel_velocity)
+{
+    uint8_t id_vec_size = get_dx_info_size();
+    dynamixel_velocity.resize(id_vec_size);
+    for (int i = 0; i < id_vec_size; i++)
+    {
+        dynamixel_velocity[i] = dxl_wb_->convertValue2Velocity(dx_info[i].id, vel_float_vec[i]);
+    }
+}
+
+bool DynamixelInterface::writeVelocity(
+    std::vector<int32_t> &dynamixel_velocity)
+{
+    bool result = false;
+    const char *log = NULL;
+
+    uint8_t id_vec_size = get_dx_info_size();
+    std::vector<uint8_t> id_vec(id_vec_size);
+    for (int i = 0; i < id_vec_size; i++)
+    {
+        id_vec[i] = dx_info[i].id;
+    }
+
+    result = dxl_wb_->syncWrite(
+        SYNC_WRITE_HANDLER_FOR_GOAL_VELOCITY,
+        id_vec.data(), id_vec_size,
+        dynamixel_velocity.data(), 1, &log);
     if (result == false)
     {
         std::cerr << log << std::endl;
@@ -368,7 +419,6 @@ void DynamixelInterface::getDynamixelStatus(
         &log);
     if (!result)
     {
-        //   ROS_ERROR("syncRead failed for group %s: %s", group_name.c_str(), log);
         std::cerr << "syncRead failed " << log << std::endl;
         // continue; // グループ単位でスキップ
         return;
@@ -383,7 +433,6 @@ void DynamixelInterface::getDynamixelStatus(
         &log);
     if (!result)
     {
-        //   ROS_ERROR("getSyncReadData position failed for group %s: %s", group_name.c_str(), log);
         std::cerr << "getSyncReadData position failed " << log << std::endl;
     }
 
@@ -396,7 +445,6 @@ void DynamixelInterface::getDynamixelStatus(
         &log);
     if (result == false)
     {
-        // ROS_ERROR("getSyncReadData velocity failed for group %s: %s", group_name.c_str(), log);
         std::cerr << "getSyncReadData velocity failed " << log << std::endl;
     }
 
@@ -409,7 +457,6 @@ void DynamixelInterface::getDynamixelStatus(
         &log);
     if (result == false)
     {
-        // ROS_ERROR("getSyncReadData current failed for group %s: %s", group_name.c_str(), log);
         std::cerr << "getSyncReadData current failed " << log << std::endl;
     }
 }

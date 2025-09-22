@@ -6,14 +6,12 @@ import numpy as np
 import time
 
 ss = irsl_shm.ShmSettings()
+ss.hash = 8888
+ss.shm_key = 8888
 ss.numJoints = 5
 ss.numForceSensors = 0
 ss.numImuSensors = 0
-ss.jointType = irsl_shm.JointType.PositionCommand| irsl_shm.JointType.PositionGains
-sm = irsl_shm.ShmManager(ss)
-ss.hash = 8888
-ss.shm_key = 8888
-
+ss.jointType = irsl_shm.JointType.PositionCommand | irsl_shm.JointType.PositionGains
 sm = irsl_shm.ShmManager(ss)
 
 res = sm.openSharedMemory(False)
@@ -34,7 +32,7 @@ for i in range(100):
             pos[j] = 0.0
         elif pos[j] > 0:
             pos[j] -= delta
-        else :
+        else:
             pos[j] += delta
     print(pos)
     ret = sm.writePositionCommand(pos)
