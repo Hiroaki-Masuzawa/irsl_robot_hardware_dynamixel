@@ -1,4 +1,5 @@
 {
+    "title": "RobotHardwareInterfaceDynamixel",
     "type": "object",
     "description": "Robot interface configuration for controlling Dynamixel motors using shared memory and hardware interface settings.",
     "properties": {
@@ -145,9 +146,9 @@
                                     "Temperature_Limit": {
                                         "type": "integer",
                                         "description": "Maximum allowed temperature before error shutdown."
-                                    },
-                                    "additionalProperties": true
-                                }
+                                    }
+                                },
+                                "additionalProperties": true
                             }
                         },
                         "required": [
