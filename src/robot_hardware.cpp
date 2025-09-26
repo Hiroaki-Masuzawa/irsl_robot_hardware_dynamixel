@@ -46,8 +46,8 @@ int main(int argc, char **argv)
         return false;
     }
     
-    YAML::Node hardware_settings = n["HardwareIFSettings"];
-    YAML::Node shm_settings = n["SHMSettings"];
+    YAML::Node hardware_settings = n[hardware_setings_name];
+    YAML::Node shm_settings = n[shm_settings_name];
 
     DynamixelInterface di;
     bool ret;

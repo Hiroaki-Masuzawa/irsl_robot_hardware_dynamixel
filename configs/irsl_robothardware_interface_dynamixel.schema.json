@@ -3,7 +3,7 @@
     "type": "object",
     "description": "Robot interface configuration for controlling Dynamixel motors using shared memory and hardware interface settings.",
     "properties": {
-        "SHMSettings": {
+        "shm_config": {
             "type": "object",
             "description": "Settings related to shared memory (SHM) for inter-process communication.",
             "properties": {
@@ -41,7 +41,7 @@
             ],
             "additionalProperties": false
         },
-        "HardwareIFSettings": {
+        "dynamixel_hardware_shm": {
             "type": "object",
             "description": "Settings for the hardware interface used to communicate with Dynamixel motors.",
             "properties": {
@@ -168,8 +168,8 @@
         }
     },
     "required": [
-        "SHMSettings",
-        "HardwareIFSettings"
+        "shm_config",
+        "dynamixel_hardware_shm"
     ],
     "additionalProperties": false
 }

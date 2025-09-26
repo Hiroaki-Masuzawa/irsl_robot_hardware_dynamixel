@@ -1,10 +1,10 @@
-SHMSettings:
+shm_config:
   hash: 8888
   shm_key: 8888
   jointType:
     - PositionCommand
     - PositionGains
-HardwareIFSettings:
+dynamixel_hardware_shm:
   period: 0.01
   port_name: /dev/ttyUSB0
   baud_rate: 1000000
